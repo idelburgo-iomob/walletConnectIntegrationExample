@@ -3,20 +3,18 @@ package com.example.walletintegrationexample.ui.main
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import com.example.walletintegrationexample.SignRequesterDelegate
 import com.example.walletintegrationexample.WalletIntegrationExample
-import com.example.walletintegrationexample.WalletRequesterDelegate
 import com.walletconnect.android.Core
 import com.walletconnect.android.CoreClient
-import com.walletconnect.auth.client.Auth
-import com.walletconnect.auth.client.AuthClient
+import com.walletconnect.android.pairing.model.PairingParams
 import com.walletconnect.sign.client.Sign
 import com.walletconnect.sign.client.SignClient
 import org.walletconnect.Session
 import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
-class MainViewModel: ViewModel(), Session.Callback {
+class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
 
     private val _connectionUri = MutableLiveData<String>()
     val connectionUri: LiveData<String>
@@ -31,7 +29,7 @@ class MainViewModel: ViewModel(), Session.Callback {
         get() = _goMetamask
 
     init {
-        SignClient.setDappDelegate(SignRequesterDelegate)
+        SignClient.setDappDelegate(this)
     }
 
     fun connect() {
@@ -104,49 +102,139 @@ class MainViewModel: ViewModel(), Session.Callback {
 
 
     fun signV2() {
-        val namespace: String = "eip155"/*Namespace identifier, see for reference: https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md#syntax*/
-        val chains: List<String> = listOf("eip155:42220")/*List of chains that wallet will be requested for*/
+        /*Namespace identifier*/
+        val namespace: String = "eip155" // reference: https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md#syntax
+        /*List of chains that wallet will be requested for*/
+        val chains: List<String> = listOf(
+            "eip155:42220" // Celo main net
+        )
+        /*List of methods that wallet will be requested for*/
         val methods: List<String> = listOf(
-            "personal_sign"
-        )/*List of methods that wallet will be requested for*/
-        val events: List<String> = listOf("chainChanged", "accountChanged")/*List of events that wallet will be requested for*/
-        val namespaces: Map<String, Sign.Model.Namespace.Proposal> = mapOf(namespace to Sign.Model.Namespace.Proposal(chains, methods, events))
-        val pairing: Core.Model.Pairing = CoreClient.Pairing.create()!! /*Either an active or inactive pairing*/
+            "eth_sign",
+            "eth_sendTransaction",
+            "eth_signTransaction",
+            "eth_signTypedData",
+            "personal_sign" // ATM we only want to sign
+        )
+        /*List of events that wallet will be requested for*/
+        val events: List<String> = listOf(
+            "chainChanged",
+            "accountChanged"
+        ) // Actually all possible events
+
+        val expiry = (System.currentTimeMillis() / 1000) + TimeUnit.SECONDS.convert(7, TimeUnit.DAYS)
+        val properties: Map<String, String> = mapOf("sessionExpiry" to "$expiry")
+
+        val namespaces: Map<String, Sign.Model.Namespace.Proposal> = mapOf(
+            namespace to Sign.Model.Namespace.Proposal(
+                chains,
+                methods,
+                events)
+        )
+
+        val pairing: Core.Model.Pairing = CoreClient.Pairing.create()!!
+
         val connectParams = Sign.Params.Connect(
             namespaces = namespaces,
-            optionalNamespaces = null,
-            properties = null,
+            optionalNamespaces = namespaces,
+            properties = properties,
             pairing = pairing)
 
         SignClient.connect(connectParams,
-            onSuccess = {
-                println("WALLET_CONN -> SignClient success")
-                var deeplink = pairing.uri
-                println("WALLET_CONN -> link: $deeplink")
-                _connectionUri.postValue("$deeplink")
-            }, onError = { error ->
-                println("WALLET_CONN -> SignClient error: $error")
-            })
-//        val params = getPersonalSignBody("")
-//        val requestParams = Sign.Params.Request(
-//            sessionTopic = requireNotNull(SignClient.DappDelegate.selectedSessionTopic),
-//            method = "personal_sign",
-//            params = params, // stringified JSON
-//            chainId = "eip155:42220"
-//        )
-//        SignClient.request(requestParams, onSuccess = {}, onError = {})
+        onSuccess = {
+            println("WALLET_CONN -> SignClient success")
+            var deeplink = pairing.uri
+            println("WALLET_CONN -> link: $deeplink")
+            _connectionUri.postValue("$deeplink")
+        }, onError = { error ->
+            println("WALLET_CONN -> SignClient error: $error")
+        })
+    }
+
+    fun getPersonalSignBody(account: String): String {
+        val msg = "My email is john@doe.com - ${System.currentTimeMillis()}".encodeToByteArray()
+            .joinToString(separator = "", prefix = "0x") { eachByte -> "%02x".format(eachByte) }
+        return "[\"$msg\", \"$account\"]"
+    }
+    override fun onSessionApproved(approvedSession: Sign.Model.ApprovedSession) {
+        // Triggered when Dapp receives the session approval from wallet
+        println("WALLET_CONN -> Sign onSessionApproved $approvedSession")
+        val (parentChain, chainId,  account) = approvedSession.accounts.first().split(":")
+        val params = getPersonalSignBody(account)
+        val requestParams = Sign.Params.Request(
+            sessionTopic = requireNotNull(approvedSession.topic),
+            method = "personal_sign",
+            params = params, // stringified JSON
+            chainId = "$parentChain:$chainId"
+        )
+        SignClient.request(request = requestParams, onSuccess = { it: Sign.Model.SentRequest ->
+            println("WALLET_CONN -> Sign request success $it")
+            val redirect = SignClient.getActiveSessionByTopic(requestParams.sessionTopic)?.redirect
+            if (redirect != null) {
+                redirect.let { deepLinkUri ->
+                    _connectionUri.postValue(deepLinkUri)
+                }
+            } else {
+                println("WALLET_CONN -> redirect is null!!")
+            }
+        }, onError = { error ->
+            println("WALLET_CONN -> Sign request error $error")
+        })
 
     }
 
+    override fun onSessionRejected(rejectedSession: Sign.Model.RejectedSession) {
+    // Triggered when Dapp receives the session rejection from wallet
+        println("WALLET_CONN -> Sign onSessionRejected $rejectedSession")
+    }
 
-}
+    override fun onSessionUpdate(updatedSession: Sign.Model.UpdatedSession) {
+        // Triggered when Dapp receives the session update from wallet
+        println("WALLET_CONN -> Sign onSessionUpdate $updatedSession")
+    }
 
-fun randomNonce(): String = Random.nextBytes(16).bytesToHex()
+    override fun onSessionExtend(session: Sign.Model.Session) {
+    // Triggered when Dapp receives the session extend from wallet
+        println("WALLET_CONN -> Sign onSessionExtended $session")
+    }
 
-fun ByteArray.bytesToHex(): String {
-    val hexString = StringBuilder(2 * this.size)
+    override fun onSessionEvent(sessionEvent: Sign.Model.SessionEvent) {
+    // Triggered when the peer emits events that match the list of events agreed upon session settlement
+        println("WALLET_CONN -> Sign onSessionEvent $sessionEvent")
+    }
 
-    this.indices.forEach { i ->
+    override fun onSessionDelete(deletedSession: Sign.Model.DeletedSession) {
+    // Triggered when Dapp receives the session delete from wallet
+        println("WALLET_CONN -> Sign onSessionDelete $deletedSession")
+
+    }
+
+    override fun onSessionRequestResponse(response: Sign.Model.SessionRequestResponse) {
+    // Triggered when Dapp receives the session request response from wallet
+        println("WALLET_CONN -> Sign onSessionRequest $response")
+
+    }
+
+    override fun onConnectionStateChange(state: Sign.Model.ConnectionState) {
+    //Triggered whenever the connection state is changed
+        println("WALLET_CONN -> Sign onConnectionState $state")
+
+    }
+
+    override fun onError(error: Sign.Model.Error) {
+    // Triggered whenever there is an issue inside the SDK
+        println("WALLET_CONN -> Sign onError $error")
+    }
+
+
+    }
+
+    fun randomNonce(): String = Random.nextBytes(16).bytesToHex()
+
+    fun ByteArray.bytesToHex(): String {
+        val hexString = StringBuilder(2 * this.size)
+
+        this.indices.forEach { i ->
         val hex = Integer.toHexString(0xff and this[i].toInt())
 
         if (hex.length == 1) {
@@ -154,7 +242,7 @@ fun ByteArray.bytesToHex(): String {
         }
 
         hexString.append(hex)
-    }
+        }
 
-    return hexString.toString()
-}
+        return hexString.toString()
+    }

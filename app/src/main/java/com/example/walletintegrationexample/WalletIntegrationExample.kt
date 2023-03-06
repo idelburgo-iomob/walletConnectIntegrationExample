@@ -7,8 +7,6 @@ import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.walletconnect.android.Core
 import com.walletconnect.android.CoreClient
 import com.walletconnect.android.relay.ConnectionType
-import com.walletconnect.auth.client.Auth
-import com.walletconnect.auth.client.AuthClient
 import com.walletconnect.sign.client.Sign
 import com.walletconnect.sign.client.SignClient
 import okhttp3.OkHttpClient
@@ -39,7 +37,7 @@ class WalletIntegrationExample: Application() {
             description = "Kotlin AuthSDK Requester Implementation",
             url = "wheelco.in",
             icons = listOf("https://raw.githubusercontent.com/WalletConnect/walletconnect-assets/master/Icon/Gradient/Icon.png"),
-            redirect = null
+            redirect = "wheel_requester://wheelcoin"
         )
         CoreClient.initialize(relayServerUrl = serverUrl, connectionType = connectionType, application = application, metaData = appMetaData) {error ->
             println("WALLET_CONN -> Error initialize Core $error")

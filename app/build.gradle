@@ -56,9 +56,8 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'
 
     // walletConnect v2 dependencies
-    implementation("com.walletconnect:android-core:1.11.0")
-    implementation("com.walletconnect:auth:1.9.0")
-    implementation("com.walletconnect:sign:2.9.0")
+    implementation("com.walletconnect:android-core:1.11.1")
+    implementation("com.walletconnect:sign:2.9.1")
 
 
 
