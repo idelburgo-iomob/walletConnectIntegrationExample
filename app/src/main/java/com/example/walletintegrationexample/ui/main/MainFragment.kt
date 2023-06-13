@@ -1,5 +1,7 @@
 package com.example.walletintegrationexample.ui.main
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import androidx.lifecycle.ViewModelProvider
 import android.os.Bundle
@@ -7,6 +9,8 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
 import com.example.walletintegrationexample.databinding.FragmentMainBinding
 
@@ -35,6 +39,7 @@ class MainFragment : Fragment() {
 
         binding.sign.setOnClickListener {
             viewModel.signMessage()
+//            viewModel.signV2Message()
         }
 
     }
@@ -64,6 +69,11 @@ class MainFragment : Fragment() {
     private fun setListeners() {
         viewModel.connectionUri.observe(viewLifecycleOwner) { uri ->
             try {
+//                val clipboard: ClipboardManager =
+//                    activity?.getSystemService(AppCompatActivity.CLIPBOARD_SERVICE) as ClipboardManager
+//                val clip = ClipData.newPlainText("offer code", uri)
+//                clipboard.setPrimaryClip(clip)
+//                Toast.makeText(requireContext(), "Successfully copied code", Toast.LENGTH_LONG).show()
                 requireActivity().startActivity(Intent(Intent.ACTION_VIEW, uri.toUri()))
             } catch (e: Exception) {
                 println("WALLET_CONN -> no app compatible")
@@ -71,7 +81,9 @@ class MainFragment : Fragment() {
         }
         viewModel.goMetamask.observe(viewLifecycleOwner) { go ->
             if (go) {
-                requireActivity().startActivity(Intent(Intent.ACTION_VIEW, "https://metamask.app.link/".toUri()))
+//                requireActivity().startActivity(Intent(Intent.ACTION_VIEW, "https://metamask.app.link/".toUri()))
+//                requireActivity().startActivity(Intent(Intent.ACTION_VIEW, "https://valoraapp.com/wc".toUri()))
+//                requireActivity().startActivity(Intent(Intent.ACTION_VIEW, .toUri()))
             }
         }
 

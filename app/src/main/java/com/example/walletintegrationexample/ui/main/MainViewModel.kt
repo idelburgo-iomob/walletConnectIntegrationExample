@@ -1,5 +1,10 @@
 package com.example.walletintegrationexample.ui.main
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.net.Uri
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -10,6 +15,8 @@ import com.walletconnect.android.pairing.model.PairingParams
 import com.walletconnect.sign.client.Sign
 import com.walletconnect.sign.client.SignClient
 import org.walletconnect.Session
+import java.math.BigInteger
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
@@ -23,6 +30,7 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
     private val _address = MutableLiveData<String?>()
     val address: LiveData<String?>
         get() = _address
+    private var pairingDeeplink = ""
 
     private val _goMetamask = MutableLiveData<Boolean>()
     val goMetamask: LiveData<Boolean>
@@ -37,8 +45,11 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
         WalletIntegrationExample.session.addCallback(this)
         var deep = WalletIntegrationExample.config.toWCUri()
         println("WALLET_CONN -> V1 LINK: $deep")
-        _connectionUri.value = "metamask://wc?uri=${WalletIntegrationExample.config.toWCUri()}"
+//        _connectionUri.value = "metamask://wc?uri=${WalletIntegrationExample.config.toWCUri()}"
+//        _connectionUri.value = "https://valoraapp.com/wc?uri=${WalletIntegrationExample.config.toWCUri()}"
+//        _connectionUri.value = "wc://wc?uri=${deep}"
         _connectionUri.value = deep
+
         _goMetamask.value = false
     }
 
@@ -73,13 +84,20 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
 
     override fun onMethodCall(call: Session.MethodCall) {
         println("WALLET_CONN -> V1 onMethodCall $call")
+        val parsed = (call as Session.MethodCall.Response)
+        val tree = parsed.result as? Map<String, Any>
+        // Use this to check if user approved and know the chainId to which was connected
+        if (tree != null && tree["approved"] == true && tree["chainId"] ==
+            42220.0) {
+            sessionApproved()
+        }
     }
 
     override fun onStatus(status: Session.Status) {
         println("WALLET_CONN -> V1 status $status")
         when(status) {
             Session.Status.Approved -> {
-                sessionApproved()
+//                sessionApproved() // use onMethodCall to get the chainID
             }
             Session.Status.Closed -> {
                 sessionClosed()
@@ -100,7 +118,27 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
         _address.postValue(WalletIntegrationExample.session.approvedAccounts()?.first())
     }
 
+    fun signV2Message() {
+        val params = getPersonalSignBody(account)
+        val (parentChain, chainId,  account) = account.split(":")
+        val requestParams = Sign.Params.Request(
+            sessionTopic = requireNotNull(topicApproved),
+            method = "personal_sign",
+            params = params, // stringified JSON
+            chainId = "$parentChain:$chainId"
+        )
+        val redirect = SignClient.getActiveSessionByTopic(requestParams.sessionTopic)
+        println("WALLET_CONN: active session $redirect")
+        SignClient.request(request = requestParams, onSuccess = { it: Sign.Model.SentRequest ->
+            println("WALLET_CONN -> Sign request success $it")
+        }, onError = { error ->
+            println("WALLET_CONN -> Sign request error $error")
+        })
+        _connectionUri.postValue(pairingDeeplink)
+    }
 
+
+    // This method uses sign, but it is to connect to the wallet
     fun signV2() {
         /*Namespace identifier*/
         val namespace: String = "eip155" // reference: https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md#syntax
@@ -110,10 +148,6 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
         )
         /*List of methods that wallet will be requested for*/
         val methods: List<String> = listOf(
-            "eth_sign",
-            "eth_sendTransaction",
-            "eth_signTransaction",
-            "eth_signTypedData",
             "personal_sign" // ATM we only want to sign
         )
         /*List of events that wallet will be requested for*/
@@ -145,7 +179,8 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
             println("WALLET_CONN -> SignClient success")
             var deeplink = pairing.uri
             println("WALLET_CONN -> link: $deeplink")
-            _connectionUri.postValue("$deeplink")
+            pairingDeeplink = "wc://wc?uri=$deeplink"
+            _connectionUri.postValue("$pairingDeeplink")
         }, onError = { error ->
             println("WALLET_CONN -> SignClient error: $error")
         })
@@ -156,30 +191,14 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
             .joinToString(separator = "", prefix = "0x") { eachByte -> "%02x".format(eachByte) }
         return "[\"$msg\", \"$account\"]"
     }
+    private var topicApproved = ""
+    private var account = ""
     override fun onSessionApproved(approvedSession: Sign.Model.ApprovedSession) {
         // Triggered when Dapp receives the session approval from wallet
         println("WALLET_CONN -> Sign onSessionApproved $approvedSession")
-        val (parentChain, chainId,  account) = approvedSession.accounts.first().split(":")
-        val params = getPersonalSignBody(account)
-        val requestParams = Sign.Params.Request(
-            sessionTopic = requireNotNull(approvedSession.topic),
-            method = "personal_sign",
-            params = params, // stringified JSON
-            chainId = "$parentChain:$chainId"
-        )
-        SignClient.request(request = requestParams, onSuccess = { it: Sign.Model.SentRequest ->
-            println("WALLET_CONN -> Sign request success $it")
-            val redirect = SignClient.getActiveSessionByTopic(requestParams.sessionTopic)?.redirect
-            if (redirect != null) {
-                redirect.let { deepLinkUri ->
-                    _connectionUri.postValue(deepLinkUri)
-                }
-            } else {
-                println("WALLET_CONN -> redirect is null!!")
-            }
-        }, onError = { error ->
-            println("WALLET_CONN -> Sign request error $error")
-        })
+        topicApproved = approvedSession.topic
+        account = approvedSession.accounts[0]
+        _address.postValue(account)
 
     }
 
