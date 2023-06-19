@@ -2,6 +2,7 @@ package com.example.walletintegrationexample
 
 import android.app.Application
 import android.content.Context
+
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.walletconnect.android.Core
@@ -48,6 +49,7 @@ class WalletIntegrationExample: Application() {
         SignClient.initialize(init = Sign.Params.Init(core = CoreClient)) { error ->
             println("WALLET_CONN -> Error initialize Sign $error")
         }
+
 
 
     }

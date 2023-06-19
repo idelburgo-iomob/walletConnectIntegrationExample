@@ -38,8 +38,8 @@ class MainFragment : Fragment() {
         }
 
         binding.sign.setOnClickListener {
-            viewModel.signMessage()
-//            viewModel.signV2Message()
+//            viewModel.signMessage()
+            viewModel.signV2Message()
         }
 
     }

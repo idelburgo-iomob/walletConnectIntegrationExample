@@ -37,7 +37,7 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
         get() = _goMetamask
 
     init {
-        SignClient.setDappDelegate(this)
+        //SignClient.setDappDelegate(this)
     }
 
     fun connect() {
@@ -119,22 +119,22 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
     }
 
     fun signV2Message() {
-        val params = getPersonalSignBody(account)
-        val (parentChain, chainId,  account) = account.split(":")
-        val requestParams = Sign.Params.Request(
-            sessionTopic = requireNotNull(topicApproved),
-            method = "personal_sign",
-            params = params, // stringified JSON
-            chainId = "$parentChain:$chainId"
-        )
-        val redirect = SignClient.getActiveSessionByTopic(requestParams.sessionTopic)
-        println("WALLET_CONN: active session $redirect")
-        SignClient.request(request = requestParams, onSuccess = { it: Sign.Model.SentRequest ->
-            println("WALLET_CONN -> Sign request success $it")
-        }, onError = { error ->
-            println("WALLET_CONN -> Sign request error $error")
-        })
-        _connectionUri.postValue(pairingDeeplink)
+//        val params = getPersonalSignBody(account)
+//        val (parentChain, chainId,  account) = account.split(":")
+//        val requestParams = Sign.Params.Request(
+//            sessionTopic = requireNotNull(topicApproved),
+//            method = "personal_sign",
+//            params = params, // stringified JSON
+//            chainId = "$parentChain:$chainId"
+//        )
+//        val redirect = SignClient.getActiveSessionByTopic(requestParams.sessionTopic)
+//        println("WALLET_CONN: active session $redirect")
+//        SignClient.request(request = requestParams, onSuccess = { it: Sign.Model.SentRequest ->
+//            println("WALLET_CONN -> Sign request success $it")
+//        }, onError = { error ->
+//            println("WALLET_CONN -> Sign request error $error")
+//        })
+//        _connectionUri.postValue(pairingDeeplink)
     }
 
 
@@ -170,17 +170,18 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
 
         val connectParams = Sign.Params.Connect(
             namespaces = namespaces,
-            optionalNamespaces = namespaces,
-            properties = properties,
+            optionalNamespaces = null,
+            properties = null,
             pairing = pairing)
 
         SignClient.connect(connectParams,
         onSuccess = {
             println("WALLET_CONN -> SignClient success")
             var deeplink = pairing.uri
-            println("WALLET_CONN -> link: $deeplink")
-            pairingDeeplink = "wc://wc?uri=$deeplink"
-            _connectionUri.postValue("$pairingDeeplink")
+            val replaced = deeplink.replace("wc:", "wc://")
+            println("WALLET_CONN -> link: $replaced")
+//            pairingDeeplink = "https://link.trustwallet.com/wc?uri=${URLEncoder.encode(deeplink, "utf-8")}"
+            _connectionUri.postValue(replaced)
         }, onError = { error ->
             println("WALLET_CONN -> SignClient error: $error")
         })
