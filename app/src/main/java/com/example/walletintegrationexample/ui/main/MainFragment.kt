@@ -69,11 +69,6 @@ class MainFragment : Fragment() {
     private fun setListeners() {
         viewModel.connectionUri.observe(viewLifecycleOwner) { uri ->
             try {
-//                val clipboard: ClipboardManager =
-//                    activity?.getSystemService(AppCompatActivity.CLIPBOARD_SERVICE) as ClipboardManager
-//                val clip = ClipData.newPlainText("offer code", uri)
-//                clipboard.setPrimaryClip(clip)
-//                Toast.makeText(requireContext(), "Successfully copied code", Toast.LENGTH_LONG).show()
                 requireActivity().startActivity(Intent(Intent.ACTION_VIEW, uri.toUri()))
             } catch (e: Exception) {
                 println("WALLET_CONN -> no app compatible")
