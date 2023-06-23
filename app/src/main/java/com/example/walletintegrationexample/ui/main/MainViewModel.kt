@@ -143,7 +143,7 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
         val namespace: String = "eip155" // reference: https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md#syntax
         /*List of chains that wallet will be requested for*/
         val chains: List<String> = listOf(
-            "eip155:42220" // Celo main net
+            "eip155:1" // Celo main net
         )
         /*List of methods that wallet will be requested for*/
         val methods: List<String> = listOf(
