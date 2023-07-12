@@ -143,11 +143,12 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
         val namespace: String = "eip155" // reference: https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md#syntax
         /*List of chains that wallet will be requested for*/
         val chains: List<String> = listOf(
-            "eip155:1" // Celo main net
+            "eip155:42220" // Celo main net
         )
         /*List of methods that wallet will be requested for*/
         val methods: List<String> = listOf(
-            "personal_sign" // ATM we only want to sign
+            "personal_sign", // ATM we only want to sign
+            "eth_sendTransaction"
         )
         /*List of events that wallet will be requested for*/
         val events: List<String> = listOf(
@@ -180,6 +181,7 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
             val replaced = deeplink.replace("wc:", "wc://")
             println("WALLET_CONN -> link: $replaced")
             pairingDeeplink = replaced
+            //val link = "metamask://wc?uri=$deeplink"
             _connectionUri.postValue(replaced)
         }, onError = { error ->
             println("WALLET_CONN -> SignClient error: $error")
@@ -189,7 +191,8 @@ class MainViewModel: ViewModel(), Session.Callback, SignClient.DappDelegate {
     fun getPersonalSignBody(account: String): String {
         val msg = "My email is john@doe.com - ${System.currentTimeMillis()}".encodeToByteArray()
             .joinToString(separator = "", prefix = "0x") { eachByte -> "%02x".format(eachByte) }
-        return "[\"$msg\", \"$account\"]"
+        val (parentChain, chainId,  accountOnly) = account.split(":")
+        return "[\"$msg\", \"$accountOnly\"]"
     }
     private var topicApproved = ""
     private var account = ""
